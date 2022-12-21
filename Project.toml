@@ -1,0 +1,5 @@
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
+Spinnaker = "8e0d2ad3-56b8-53f3-8036-54b674872bef"
