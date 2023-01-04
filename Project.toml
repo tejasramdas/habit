@@ -1,5 +1,12 @@
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
 Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
+ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 Spinnaker = "8e0d2ad3-56b8-53f3-8036-54b674872bef"
+ThreadPools = "b189fb0b-2eb5-4ed4-bc0c-d34c51242431"
