@@ -1,8 +1,12 @@
+Julia deps: see Project.toml (activate local environment)
+Python deps: pyserial
+
 Updates:
 1. Fixed saving. Options to save as separate images or as JLD.
 2. New processing pipeline file with attempted FFT.
 3. Simple python script to toggle LED.
 4. Automatically create new folder for each recording. Save frame and camera stats.
+5. Added Julia PyCall function for LED. PyCall wraps Python wraps Micropython REPL.
 
 To do:
 1. Increase FPS. Need to figure out optimzation in Spinnaker.

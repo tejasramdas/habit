@@ -1,9 +1,14 @@
-using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, Spinnaker #load Spinnaker last
+using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall Spinnaker #load Spinnaker last
 
 # NOTES
 # - image timestamp units: 10e-5 ms
 
 folder_format="yyyy_mm_dd_HH_MM_SS"
+
+function led_init():
+    pushfirst!(PyVector(pyimport("sys")."path"), ".")
+    return pyimport("led").LED()
+end
 
 function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
     cam=CameraList()[0];

@@ -1,3 +1,4 @@
 *.so
 *.jld
 old_pics/
+*.pyc
