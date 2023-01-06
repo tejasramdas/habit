@@ -1,4 +1,5 @@
 *.so
 *.jld
+frames/
 old_pics/
 *.pyc
