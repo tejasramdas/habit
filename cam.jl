@@ -1,4 +1,4 @@
-using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, Spinnaker #load Spinnaker last
+using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, HDF5, Spinnaker #load Spinnaker last
 
 # NOTES
 # - image timestamp units: 10e-5 ms
@@ -21,7 +21,7 @@ function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
         buffer=buffermode!(cam, "NewestOnly")
     else
         buffermode!(cam, "OldestFirst")
-        buffercount!(cam, 2*framerate)
+        buffercount!(cam, 45) # max=45
     end
     if prop
         print(cam_prop(cam))
@@ -49,7 +49,7 @@ function init_disp(obs_img)
 end
 
 function init_img()
-    img=rand(Float32,2048,2048)
+    img=rand(UInt8,2048,2048)
     obs_img=Observable(img)
     return obs_img
 end
@@ -57,140 +57,134 @@ end
 function get_one_frame(cam,obs_img;sleept=0,save=false)
     start!(cam);
     sleep(sleept)
-    img=zeros(Float32,2048,2048)
     if save
         saveimage(cam,"test",spinImageFileFormat(5));
     else
-        img_id, img_ts, img_exp = getimage!(cam,img);
-        obs_img[]=(img)[:,end:-1:1];
+        img=getimage(cam,Gray{N0f8});
+        obs_img[]=UInt8.(floor.(img*255))[:,end:-1:1];
     end
     stop!(cam);
     return img
 end
 
-function print_fps(i, beg, fps)
-    print_stat(i, "$(round(fps[end]-fps[end-1],digits=4)) s", "$(round(fps[end]-beg,digits=4)) s")
+function print_fps(i, fps, img_ts;stop=false)
+    if stop
+        print_stat(i, "Stopped Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s")
+    else
+        print_stat(i, "$(round(10e8/(img_ts[end]-img_ts[end-1]),digits=1)) FPS Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s")
+    end
 end
 
-function get_many_frames(cam,n;stat=false,sleept=0,obs_img=Nothing,disp=false,save=false,fold_name=Dates.format(now(),folder_format))
-    start!(cam);
-    beg=time()
-    fps=[beg]
-    ts_arr=[]
-    id_arr=[]
-    img_arr=[]
-    img=zeros(Float32,2048,2048)
-    for i in 1:n
-        img_id, img_ts, img_exp = getimage!(cam,img);
-        push!(img_arr,img)
-        if disp
-            obs_img[]=(img)[:,end:-1:1];
-        end
-        push!(ts_arr,img_ts)
-        push!(id_arr,img_id)
-        push!(fps,time())
-        if stat
-            print_fps(i,beg,fps)
-            sleep(sleept)
-        else
-            sleep(max(0.001,sleept))
-        end
+function plot_stats(stats)
+    fig=Figure()
+    ax1=GLMakie.Axis((fig[1,1]))
+    ax2=GLMakie.Axis((fig[1,2]))
+    lines!(ax1,(stat[1].-stat[1][1]))
+    lines!(ax1,(stat[3].-stat[3][1])/1000)
+    lines!(ax2,diff(stat[1]))
+    lines!(ax2,diff(stat[3])/1000)
+    buffercheck=2*(1000*diff(stat[1]).>diff(stat[3])).-1
+    buffercount=[0]
+    for i in buffercheck
+        push!(buffercount,min(45,max(0,buffercount[end]+i)))
     end
-    println("\nDone. Took $(round(fps[end]-beg)) s for $n frames.");
-    stop!(cam);
-    ts_arr=round(ts_arr/10e15,digits=3)
-    if save
-        mkdir(fold_name)
-        println("Saving $n frames:")
-        for i in tqdm(1:n)
-            Images.save("$(fold_name)/img_$(lpad(i,5,"0")).png",rotr90(img_arr[i])[:,end:-1:1])
-        end
-        CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr],["ID","TD"]))
-    end
-    return round.(ts_arr/10e15,3), id_arr
+    lines!(ax2,buffercount/45)
+    disp(fig,x=1000)
 end
 
-function record(cam;t=0,frames=0,stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="frames/"*Dates.format(now(),folder_format),sleept=0,sep=false)
-    cam_fps=framerate(cam)
-    if t==0
-        t=frames/framerate(cam)
-    end
+function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false)
+    cam_fps=Int(floor(framerate(cam)))
     if save_frame
-        mkdir(fold_name)
+        mkpath(fold_name)
+        file=h5open("$fold_name/dat.h5","w")
     end
-    start!(cam);
-    beg=time()
     beg_ts=0
-    fps=[beg]
     ts_arr=[]
     id_arr=[]
-    img=zeros(Float32,2048,2048)
-    img_arr=[]
-    n=0
-    while ((fps[end]-beg)<t)
-        img_id, img_ts, img_exp = getimage!(cam,img);
-        if n==0
-            beg_ts=img_ts
+    img=zeros(Gray{N0f8},2048,2048)
+    n=1
+    start!(cam);
+    _,ts_init,_=getimage!(cam,img)
+    fps=[time()]
+    img_ts=ts_init
+    ts_arr=[img_ts]
+    img_arr=zeros(UInt8,2048,2048,cam_fps)
+    while (img_ts-ts_init)<t*10e8
+        img_id,img_ts,_ = getimage!(cam,img);
+        img_id-=1
+        if save_frame
+            img_arr[:,:,((n-1)%cam_fps)+1].=reinterpret(UInt8,img)
         end
-        push!(img_arr,deepcopy(img))
         if disp
             obs_img[]=(img)[:,end:-1:1];
         end
         push!(ts_arr,img_ts)
         push!(id_arr,img_id)
+        if save_frame && n%cam_fps==0
+            write(file, "$n", img_arr)
+            img_arr.=0
+        end
         push!(fps,time())
-        n+=1
         if stat
-            print_fps(n,beg,fps)
+            print_fps(n,fps,ts_arr,stop=(fps[end]-fps[1])>t)
             sleep(sleept)
-        else
+        elseif disp
             sleep(max(0.001,sleept))
         end
-        if save_frame && n%cam_fps==0
-            JLD.save("$fold_name/data_$(lpad.("$n",4,"0")).jld", "frames", img_arr)
-            img_arr=[]
-        end
+        n+=1
     end
-    println("\nDone. Took $(round(fps[end]-beg)) s for $n frames.");
+    println("\nDone. Took $(round(fps[end]-fps[1])) s for $n frames. FPS = $(round(n/t,digits=1)).");
     stop!(cam);
-    ts_arr=(ts_arr.-beg_ts)/10e5
-    if save_frame && n%40!=0
-        JLD.save("$fold_name/data_$(lpad.("$n",4,"0")).jld", "frames", img_arr)
-        img_arr=[]
+    ts_arr=(ts_arr.-img_ts)/10e5
+    if save_frame 
+        if sum(img_arr)>0
+            write(file, "$n", img_arr)
+            img_arr=Nothing
+        end
         println("Saved $n frames to $fold_name...")
-        CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr,fps.-beg],["ID","Cam","Grab"]))
+        CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr[2:end],fps[2:end].-fps[1]],["ID","Cam","Grab"]))
         open("$fold_name/dat.txt", "w") do file
             write(file, cam_prop(cam))
         end
+        close(file)
     end
-    return true
+    return fps,id_arr,ts_arr
 end
 
+function fr(cam,n)
+    framerate!(cam,n)
+end
 
-function print_stat(x,y,z="")
-    print("\r",rpad.(x,20," "),lpad.(y,20," "),lpad.(z,20," "))
+function print_stat(x,y,z="",a="")
+    print("\r",rpad.(x,10," "),lpad.(y,20," "),lpad.(z,20," "),lpad.(a,20," "))
 end
 
 cam=init_cam(40,10000,"";prop=true);
 
-obs_img=init_img();
+# obs_img=init_img();
 
-fig=init_disp(obs_img);
+# fig=init_disp(obs_img);
 
-function disp()
+function disp(fig;x=500,y=500)
     screen=display(fig);
-    resize!(screen, 500, 500);
+    resize!(screen,x,y);
 end
 
-img=get_one_frame(cam,obs_img);
+# img=get_one_frame(cam,obs_img);
 
 println("READY");
 
 # get_many_frames(cam,img,obs_img,100);
 
-ts_arr,id_arr=record(cam,t=20,save_frame=true,obs_img=obs_img,disp=false,stat=true);
 
-# ts_arr,id_arr=record(cam,t=20,save_frame=false,obs_img=obs_img,disp=true,stat=true);
+# stat=record(cam,5;save_frame=true,disp=false,stat=true);
+
+SAVE_FRAME=true
+
+stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true);
+
+plot_stats(stat);
+
 
 # while true
     # print("Enter command: ")
