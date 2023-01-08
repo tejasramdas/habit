@@ -138,8 +138,8 @@ end
 
 #################
 
-
-img_arr=load_stack();
+fold_name = "2023_01_07_20_32_00"
+img_arr=load_stack(fold_name);
 
 to_img=2
 

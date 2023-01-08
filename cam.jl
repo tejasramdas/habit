@@ -1,15 +1,9 @@
 using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, HDF5, Spinnaker #load Spinnaker last
-
+include("led.jl")
 # NOTES
 # - image timestamp units: 10e-5 ms
 
 folder_format="yyyy_mm_dd_HH_MM_SS"
-
-function led_init()
-    pushfirst!(PyVector(pyimport("sys")."path"), ".")
-    return pyimport("led").LED()
-end
-
 function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
     cam=CameraList()[0];
     framerate!(cam,framerate)
@@ -67,11 +61,11 @@ function get_one_frame(cam,obs_img;sleept=0,save=false)
     return img
 end
 
-function print_fps(i, fps, img_ts;stop=false)
+function print_fps(i, fps, img_ts;stop=false,led="OFF")
     if stop
-        print_stat(i, "Stopped Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s")
+        print_stat(i, "Stopped Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s", led)
     else
-        print_stat(i, "$(round(10e8/(img_ts[end]-img_ts[end-1]),digits=1)) FPS Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s")
+        print_stat(i, "$(round(10e8/(img_ts[end]-img_ts[end-1]),digits=1)) FPS Cam", "$(round(1/(fps[end]-fps[end-1]),digits=1)) FPS Grab","$(round(fps[end]-fps[1],digits=3)) s", led)
     end
 end
 
@@ -107,15 +101,14 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
         print("LED")
         @tspawnat 2 flash_led(led,t,p_w,period,offset=led_offset)
     end
-    _,ts_init,_=getimage!(cam,img)
+    img_id,ts_init,_=getimage!(cam,img)
     fps=[time()]
     img_ts=ts_init
-    ts_arr=[img_ts]
     ts_arr=[ts_init]
-    id_arr=[1]
+    id_arr=[img_id]
     img_arr=zeros(UInt8,2048,2048,cam_fps)
     img_arr[:,:,1].=reinterpret(UInt8,img)
-    while (img_ts-ts_init)<t*10e8
+    while (img_ts-ts_init)<(t*1e9)
         img_id,img_ts,_ = getimage!(cam,img);
         n+=1
         if save_frame
@@ -127,17 +120,18 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
         push!(ts_arr,img_ts)
         push!(id_arr,img_id)
         if led_strobe
-            push!(led_arr,Int(((img_ts-ts_init)*10e-8)%period>p_w))
+            led_stat=Int(((img_ts-ts_init)*1e-9-led_offset)%period < p_w)
         else
-            push!(led_arr,0)
+            led_stat=0
         end
+        push!(led_arr,led_stat)
         if save_frame && n%cam_fps==0
             write(file, "$n", img_arr)
             img_arr.=0
         end
         push!(fps,time())
         if stat
-            print_fps(n,fps,ts_arr,stop=(fps[end]-fps[1])>t)
+            print_fps(n,fps,ts_arr,stop=(fps[end]-fps[1])>t,led=["OFF","ON"][led_stat+1])
             sleep(sleept)
         elseif disp
             sleep(max(0.001,sleept))
@@ -145,7 +139,9 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
     end
     println("\nDone. Took $(round(fps[end]-fps[1])) s for $n frames. FPS = $(round(n/t,digits=1)).");
     stop!(cam);
-    ts_arr=(ts_arr.-ts_init)/10e5
+    ts_arr.-=ts_init
+    ts_arr*=1e-9
+    id_arr.+=1
     if save_frame 
         if sum(img_arr)>0
             write(file, "$n", img_arr)
@@ -165,8 +161,8 @@ function fr(cam,n)
     framerate!(cam,n)
 end
 
-function print_stat(x,y,z="",a="")
-    print("\r",rpad.(x,10," "),lpad.(y,20," "),lpad.(z,20," "),lpad.(a,20," "))
+function print_stat(x,y,z="",a="",b="")
+    print("\r",rpad.(x,10," "),lpad.(y,15," "),lpad.(z,15," "),lpad.(a,25," "),lpad.(b,15," "))
 end
 
 cam=init_cam(40,10000,"";prop=true);
@@ -180,27 +176,6 @@ function disp(fig;x=500,y=500)
     resize!(screen,x,y);
 end
 
-
-function flash_led(led,t=0,p_w=0,period=0;offset=0)
-    beg=time()
-    curr_t=0
-    x=[]
-    while curr_t<(t-0.001)
-        curr_t=time()-beg
-        if curr_t>offset
-            if (curr_t-offset)%period<p_w
-                push!(x,1)
-                led.high()
-            else
-                push!(x,0)
-                led.low()
-            end
-        end
-        curr_t=time()-beg
-    end
-    led.low()
-    return x
-end
 
 led=led_init()
 
@@ -217,10 +192,11 @@ println("READY");
 # stat=record(cam,5;save_frame=true,disp=false,stat=true);
 
 SAVE_FRAME=true
+notes="5 para no stimulus"
 
-stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes="Small well test 2");
+stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes);
 
-# stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes="Testing LED",led_strobe=true,p_w=0.2,period=1,led=led);
+# stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes,led_strobe=true,p_w=0.2,period=1,led=led);
 
 # plot_stats(stat);
 

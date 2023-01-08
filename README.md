@@ -21,6 +21,12 @@ Updates:
 3. Saving first frame from camera (to get initial cam time) rather than burning. Safer in the long run when trying to sync things together.
 4. Synced LED with camera but haven't properly output. Added LED log using camera time to CSV but it's incorrect at the moment.
 
+1/8/23
+1. I was multiplying camera time by 10e-8 = 1e7 rather than 1e-9. Geez. 
+2. LED sync works fine. Log makes final LED status 1 if final timestamp is greater than recording time.
+2. Tried recording tracking video. Works well. Need to make function.
+
+
 To do:
 1. Simple interface for recording/saving. 
 2. Test LED recording
