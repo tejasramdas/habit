@@ -92,26 +92,32 @@ function plot_stats(stats)
     disp(fig,x=1000)
 end
 
-function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false)
+function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false,notes="",led_strobe=false,period=2,p_w=1,led=nothing,led_offset=0)
     cam_fps=Int(floor(framerate(cam)))
     if save_frame
         mkpath(fold_name)
         file=h5open("$fold_name/dat.h5","w")
     end
     beg_ts=0
-    ts_arr=[]
-    id_arr=[]
     img=zeros(Gray{N0f8},2048,2048)
     n=1
+    led_arr=[0]
     start!(cam);
+    if led_strobe
+        print("LED")
+        @tspawnat 2 flash_led(led,t,p_w,period,offset=led_offset)
+    end
     _,ts_init,_=getimage!(cam,img)
     fps=[time()]
     img_ts=ts_init
     ts_arr=[img_ts]
+    ts_arr=[ts_init]
+    id_arr=[1]
     img_arr=zeros(UInt8,2048,2048,cam_fps)
+    img_arr[:,:,1].=reinterpret(UInt8,img)
     while (img_ts-ts_init)<t*10e8
         img_id,img_ts,_ = getimage!(cam,img);
-        img_id-=1
+        n+=1
         if save_frame
             img_arr[:,:,((n-1)%cam_fps)+1].=reinterpret(UInt8,img)
         end
@@ -120,6 +126,11 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
         end
         push!(ts_arr,img_ts)
         push!(id_arr,img_id)
+        if led_strobe
+            push!(led_arr,Int(((img_ts-ts_init)*10e-8)%period>p_w))
+        else
+            push!(led_arr,0)
+        end
         if save_frame && n%cam_fps==0
             write(file, "$n", img_arr)
             img_arr.=0
@@ -131,20 +142,19 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
         elseif disp
             sleep(max(0.001,sleept))
         end
-        n+=1
     end
     println("\nDone. Took $(round(fps[end]-fps[1])) s for $n frames. FPS = $(round(n/t,digits=1)).");
     stop!(cam);
-    ts_arr=(ts_arr.-img_ts)/10e5
+    ts_arr=(ts_arr.-ts_init)/10e5
     if save_frame 
         if sum(img_arr)>0
             write(file, "$n", img_arr)
             img_arr=Nothing
         end
         println("Saved $n frames to $fold_name...")
-        CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr[2:end],fps[2:end].-fps[1]],["ID","Cam","Grab"]))
+        CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr,fps.-fps[1],led_arr],["ID","Cam","Grab","LED"]))
         open("$fold_name/dat.txt", "w") do file
-            write(file, cam_prop(cam))
+            write(file, fold_name*"\n\n"*cam_prop(cam)*"\n\nNotes:\n"*notes*"\n\n")
         end
         close(file)
     end
@@ -170,6 +180,33 @@ function disp(fig;x=500,y=500)
     resize!(screen,x,y);
 end
 
+
+function flash_led(led,t=0,p_w=0,period=0;offset=0)
+    beg=time()
+    curr_t=0
+    x=[]
+    while curr_t<(t-0.001)
+        curr_t=time()-beg
+        if curr_t>offset
+            if (curr_t-offset)%period<p_w
+                push!(x,1)
+                led.high()
+            else
+                push!(x,0)
+                led.low()
+            end
+        end
+        curr_t=time()-beg
+    end
+    led.low()
+    return x
+end
+
+led=led_init()
+
+led.high()
+led.low()
+
 # img=get_one_frame(cam,obs_img);
 
 println("READY");
@@ -181,9 +218,12 @@ println("READY");
 
 SAVE_FRAME=true
 
-stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true);
+stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes="Small well test 2");
 
-plot_stats(stat);
+# stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes="Testing LED",led_strobe=true,p_w=0.2,period=1,led=led);
+
+# plot_stats(stat);
+
 
 
 # while true

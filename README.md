@@ -15,7 +15,13 @@ Updates:
 3. Refactored `record` function. Removed `get_many_frames`. Continues to run until all the frames up to given time are retrieved (rather than stopping when computer time runs out).
 4. Plot tracks after getting para locations (very basic using blobLoG)
 
+1/7/23
+1. Para tracking seems to be working. Changed sizes of blobs and frames. Also passing delta frame through threshold.
+2. Added path visualization. Change plotting to only get window around current location to make things faster. Arrows probably make it a bit slower than I'd like.
+3. Saving first frame from camera (to get initial cam time) rather than burning. Safer in the long run when trying to sync things together.
+4. Synced LED with camera but haven't properly output. Added LED log using camera time to CSV but it's incorrect at the moment.
+
 To do:
 1. Simple interface for recording/saving. 
-2. Integrate with PyCall and sync LED.
+2. Test LED recording
 3. Precompile for quick startup
