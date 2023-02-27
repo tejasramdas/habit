@@ -1,7 +1,6 @@
 using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, HDF5, Spinnaker #load Spinnaker last
-include("led.jl")
 # NOTES
-# - image timestamp units: 10e-5 ms
+# image timestamp units: 1 ns = 10e-6 ms
 
 folder_format="yyyy_mm_dd_HH_MM_SS"
 function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
@@ -165,47 +164,7 @@ function print_stat(x,y,z="",a="",b="")
     print("\r",rpad.(x,10," "),lpad.(y,15," "),lpad.(z,15," "),lpad.(a,25," "),lpad.(b,15," "))
 end
 
-cam=init_cam(40,10000,"";prop=true);
-
-# obs_img=init_img();
-
-# fig=init_disp(obs_img);
-
 function disp(fig;x=500,y=500)
     screen=display(fig);
     resize!(screen,x,y);
 end
-
-
-led=led_init()
-
-led.high()
-led.low()
-
-# img=get_one_frame(cam,obs_img);
-
-println("READY");
-
-# get_many_frames(cam,img,obs_img,100);
-
-
-# stat=record(cam,5;save_frame=true,disp=false,stat=true);
-
-SAVE_FRAME=true
-notes="5 para no stimulus"
-
-stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes);
-
-# stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes,led_strobe=true,p_w=0.2,period=1,led=led);
-
-# plot_stats(stat);
-
-
-
-# while true
-    # print("Enter command: ")
-    # inp=readline()
-    # if inp=="p"
-        # print(cam_prop(cam))
-    # end
-# end

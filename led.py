@@ -1,7 +1,7 @@
 import pyboard
 
 class LED:
-    def __init__(self, gpio='X4', flash=False):
+    def __init__(self, gpio='Y4', flash=False):
         self.pyb=pyboard.Pyboard('/dev/ttyACM0')
 
         self.pyb.enter_raw_repl()
