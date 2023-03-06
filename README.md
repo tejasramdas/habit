@@ -26,8 +26,10 @@ Updates:
 2. LED sync works fine. Log makes final LED status 1 if final timestamp is greater than recording time.
 2. Tried recording tracking video. Works well. Need to make function.
 
+3/5/23
+1. Updated light stimulus to include projector with Makie
+2. Fixed light stimulus loop to only toggle when required, not on every iteration
 
 To do:
 1. Simple interface for recording/saving. 
-2. Test LED recording
-3. Precompile for quick startup
+2. Precompile for quick startup

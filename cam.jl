@@ -2,6 +2,8 @@ using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, P
 # NOTES
 # image timestamp units: 1 ns = 10e-6 ms
 
+include("stim.jl")
+
 folder_format="yyyy_mm_dd_HH_MM_SS"
 function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
     cam=CameraList()[0];
@@ -37,12 +39,13 @@ function init_disp(obs_img)
     f=Figure()
     ax=GLMakie.Axis(f[1,1])
     hidedecorations!(ax)
+    resize!(f, (512, 512)) 
     @tspawnat 2 image!(ax,obs_img)
     return f
 end
 
 function init_img()
-    img=rand(UInt8,2048,2048)
+    img=rand(UInt8,512,512)
     obs_img=Observable(img)
     return obs_img
 end
@@ -54,7 +57,7 @@ function get_one_frame(cam,obs_img;sleept=0,save=false)
         saveimage(cam,"test",spinImageFileFormat(5));
     else
         img=getimage(cam,Gray{N0f8});
-        obs_img[]=UInt8.(floor.(img*255))[:,end:-1:1];
+        obs_img[]=UInt8.(floor.(img*255))[1:4:end,end:-4:1];
     end
     stop!(cam);
     return img
@@ -85,7 +88,7 @@ function plot_stats(stats)
     disp(fig,x=1000)
 end
 
-function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false,notes="",led_strobe=false,period=2,p_w=1,led=nothing,led_offset=0)
+function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/media/para/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false,notes="",strobe=false,period=2,p_w=1,led=nothing,led_offset=0,proj_ax=Nothing,color=:blue)
     cam_fps=Int(floor(framerate(cam)))
     if save_frame
         mkpath(fold_name)
@@ -96,9 +99,11 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
     n=1
     led_arr=[0]
     start!(cam);
-    if led_strobe
-        print("LED")
-        @tspawnat 2 flash_led(led,t,p_w,period,offset=led_offset)
+    if strobe=="led"
+            @tspawnat 2 flash(t,p_w,period,true;offset=led_offset,led=led)
+    elseif strobe=="projector"
+            @tspawnat 1 flash(t,p_w,period,false;offset=led_offset,ax=proj_ax,color=color)
+    else
     end
     img_id,ts_init,_=getimage!(cam,img)
     fps=[time()]
@@ -114,11 +119,11 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
             img_arr[:,:,((n-1)%cam_fps)+1].=reinterpret(UInt8,img)
         end
         if disp
-            obs_img[]=(img)[:,end:-1:1];
+            obs_img[]=UInt8.(floor.(img*255))[1:4:end,end:-4:1]
         end
         push!(ts_arr,img_ts)
         push!(id_arr,img_id)
-        if led_strobe
+        if strobe in ["led","projector"]
             led_stat=Int(((img_ts-ts_init)*1e-9-led_offset)%period < p_w)
         else
             led_stat=0
