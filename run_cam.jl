@@ -22,9 +22,9 @@ println("READY");
 
 # stat=record(cam,60;save_frame=true,disp=false,stat=true);
 
-SAVE_FRAME=[true,false][1]
+SAVE_FRAME=[true,false][2]
 DISPLAY=[true,false][2]
-STROBE=["projector","led"][2]
+STROBE=["projector","led"][1]
 notes="testing 40s with 15 Hz 1s led @ 20 FPS"
 
 # stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes);
