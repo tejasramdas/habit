@@ -1,8 +1,8 @@
 using Images, GLMakie, ProgressBars, FFTW, HDF5, PaddedViews
 
 
-function load_stack(fold_name=readdir("/ssd")[end])
-    file_loc="/ssd/"*fold_name*"/dat.h5"
+function load_stack(fold_name=readdir("/home/data")[end])
+    file_loc="/home/data/"*fold_name*"/dat.h5"
     file=h5open(file_loc)
     dat=read(file)
     sort_keys=string.(sort(parse.(Int,collect(keys(dat)))))

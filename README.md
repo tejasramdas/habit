@@ -1,5 +1,6 @@
 Julia deps: see Project.toml (activate local environment)
 Python deps: pyserial
+Need to give access to serial port for PyBoard (`sudo chmod 777 /dev/ttyACM0')
 
 Updates:
 1/4/23

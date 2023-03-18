@@ -88,7 +88,7 @@ function plot_stats(stats)
     disp(fig,x=1000)
 end
 
-function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/media/para/ssd/"*Dates.format(now(),folder_format),sleept=0,sep=false,notes="",strobe=false,period=2,p_w=1,led=nothing,led_offset=0,proj_ax=Nothing,color=:blue)
+function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/home/para/data/"*Dates.format(now(),folder_format),sleept=0,sep=false,notes="",strobe=false,period=2,p_w=1,led=nothing,led_offset=0,proj_ax=Nothing,color=:blue)
     cam_fps=Int(floor(framerate(cam)))
     if save_frame
         mkpath(fold_name)
