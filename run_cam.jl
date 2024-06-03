@@ -1,19 +1,17 @@
 include("cam.jl")
 
-led=led_init()
+stim=stim_init()
 
-led.high()
-sleep(1)
-led.low()
+stim.high()
+sleep(0.05)
+stim.low()
 
-cam=init_cam(40,10000,"";prop=true);
+cam=init_cam(10,10000,"";prop=true);
 
 obs_img=init_img();
 
 fig=init_disp(obs_img);
-
 display(fig)
-
 img=get_one_frame(cam,obs_img);
 
 println("READY");
@@ -22,22 +20,21 @@ println("READY");
 
 # stat=record(cam,60;save_frame=true,disp=false,stat=true);
 
-SAVE_FRAME=[true,false][1]
+SAVE_FRAME=[true,false][2]
 DISPLAY=[true,false][2]
-STROBE=["projector","led","none"][3]
-TRIAL_LENGTH=120
-PULSE=1
-PERIOD=10
-notes="Duration: $TRIAL_LENGTH s \nStimulus: $STROBE \nPulse: $PULSE s \nPeriod: $PERIOD s \n\n"
-notes*="5 para, no stimulus (for video tracking test)"
+STROBE=[true,false][1]
+PRINT_STAT=[true,false][1]
+TRIAL_LENGTH=1800
+PULSE=0.02
+PERIOD=60
+BUZZER_VOLTAGE=8.00
+notes="Duration: $TRIAL_LENGTH s\nDisplay: $DISPLAY \nSave: $SAVE_FRAME \nStimulus: $STROBE \nPulse: $PULSE s \nPeriod: $PERIOD s \nBuzzer voltage: $BUZZER_VOLTAGE\n\n"
+notes*="Habituation trial with new buzzer setup (double weigh boat). First habituation trial with all this new code. Only 3 anchored cells though.\n"
 print(notes)
 
-# stat=record(cam,5;save_frame=SAVE_FRAME,disp=false,stat=true,notes=notes);
+stat=record(cam,TRIAL_LENGTH;obs_img=obs_img,save_frame=SAVE_FRAME,disp=DISPLAY,stat=PRINT_STAT,notes=notes,strobe=STROBE,p_w=PULSE,period=PERIOD,stim=stim);
 
-f,ax=create_screen()
-display(f)
-
-stat=record(cam,TRIAL_LENGTH;obs_img=obs_img,save_frame=SAVE_FRAME,disp=DISPLAY,stat=true,notes=notes,strobe=STROBE,p_w=PULSE,period=PERIOD,led=led,proj_ax=ax);
+stop!(cam)
 
 plot_stats(stat);
 
@@ -48,3 +45,5 @@ plot_stats(stat);
         # print(cam_prop(cam))
     # end
 # end
+
+
