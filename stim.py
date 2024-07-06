@@ -3,21 +3,23 @@ import datetime
 import time
 
 class Stim:
-    def __init__(self, gpio='Y1', flash=False):
-        self.pyb=pyboard.Pyboard('/dev/ttyACM0')
+    def __init__(self, gpios=1,gpiol=14, port=1, flash=False):
+        self.pyb=pyboard.Pyboard(f"/dev/ttyACM{port}")
         self.pyb.enter_raw_repl()
-        for i in range(16):
-            self.exec(f"pyb.LED({i%4+1}).toggle()")
-            self.exec("pyb.delay(10)")
-        self.exec(f"stim=pyb.Pin('{gpio}',pyb.Pin.OUT_PP);")
-        if flash:
-            self.exec("stim.high(); pyb.delay(100);stim.low();")
+        self.exec(f"import neopixel, time;")
+        self.exec(f"stim=machine.Pin({gpios},machine.Pin.OUT);")
+        self.exec(f"led=neopixel.NeoPixel(machine.Pin({gpiol},machine.Pin.OUT), 24);")
+        self.exec(f"stat=machine.Pin(25,machine.Pin.OUT);stat.high()")
     def exec(self,cmd):
         return self.pyb.exec(cmd)
     def high(self):
         self.exec("stim.high()")
     def low(self):
         self.exec("stim.low()")
+    def set_led(self,r,g,b):
+        for i in range(24):
+            self.exec(f"led[{i}]=({r},{g},{b});")
+        self.exec(f"led.write()")
     def flash_me(self, t=0, period=0, offset=0, p_w=0):
         print("Starting")
         beg=datetime.datetime.now()

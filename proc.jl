@@ -25,8 +25,8 @@ function convert_h5(fold_name)
     println("Converted $file_loc...")
 end
 
-function load_stack(fold_name=readdir("/home/para/data")[end])
-    file_loc="/home/para/data/"*fold_name*"/dat."
+function load_stack(master_folder="/home/para/data/",fold_name=readdir(master_folder)[end])
+    file_loc="$master_folder$fold_name/dat."
     frame_info=CSV.read(file_loc*"csv",DataFrame)
     notes=read(open(file_loc*"txt","r"),String)
     binarr=open(file_loc*"bin")
@@ -222,5 +222,9 @@ function write2video(imgstack,fold_name;crf=21,fps=10)
     # end
     VideoIO.save("$fold_name.mp4", [imgstack[:,:,i] for i in 1:size(imgstack)[end]], framerate=fps, encoder_options=encoder_options)
 end
+
+#=function extract_stim_frames(imgstack,fold_name)=#
+#==#
+#=end=#
 #################
 

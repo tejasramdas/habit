@@ -5,28 +5,81 @@ include("proc.jl")
 img_arr=zeros(UInt8,2048,2048,20)
 diff_arr=diff(Float16.(img_arr)/Float16(255.0),dims=3);
 
-frame_num=Observable(1)
-to_img=1
-threshold=Observable(0.03)
-p_x=Observable(1)
-p_y=Observable(1)
-
-datasets=DataFrame(dataset=readdir("/home/para/data"))
-
-fold_name = datasets.dataset[49]
-
-img_arr,img_info,notes=load_stack(fold_name);
-print(notes)
-
-led_stat=map(x->["OFF","ON"][x],Int.(img_info.Stim).+1)
-
-to_img=1
-
-diff_arr=compute_diff(img_arr[:,:,1:2:end],fold_name;diff_step=1);
+#=frame_num=Observable(1)=#
+#=to_img=1=#
+#=threshold=Observable(0.03)=#
+#=p_x=Observable(1)=#
+#=p_y=Observable(1)=#
 
 
+####IGNORE ABOVE
 
-write2video(img_arr[1:4:end,1:4:end,1:10:end],"test";fps=1)
+MASTER_FOLDER="/media/para/T7_Tejas"
+
+MASTER_FOLDER="/home/para"
+
+datasets=DataFrame(dataset=sort(readdir("$MASTER_FOLDER/data")))
+println(datasets)
+
+fold_name=datasets.dataset[11]
+
+img_arr,img_info,notes=load_stack("$MASTER_FOLDER/data/",fold_name);
+
+fr=sort(vcat(collect(10:600:size(img_arr)[3]),collect(30:600:size(img_arr)[3])))
+imshow(img_arr[:,:,fr])
+
+write2video(img_arr[1:4:end,1:4:end,1:10:end],"$MASTER_FOLDER/data/$fold_name/$fold_name";fps=10)
+file=open("$MASTER_FOLDER/data/$fold_name/dat2.bin","w+")
+wrt = write(file, img_arr[1:4:end,1:4:end,1:10:end])
+
+
+##### IGNORE BELOW
+
+
+
+
+
+
+#Inspect all datasets
+for i in datasets.dataset
+    println(i)
+    try
+        notes=read(open("$MASTER_FOLDER/data/$i/dat.txt","r"), String)
+        siz=filesize("$MASTER_FOLDER/data/$i/dat.bin")/1e9
+        println(notes)
+        println(siz)
+    catch e
+        println("Does not exist")
+    end
+    println(i)
+    readline()
+end
+
+start=2
+# What is this chunk for? For reading all info about the dataset?
+for i in (size(datasets.dataset)[1]-start+1):(size(datasets.dataset)[1])
+    fold_name = datasets.dataset[i]
+    try
+        img_arr,img_info,notes=load_stack(MASTER_FOLDER*"/data/", fold_name);
+        println(notes)
+        println(fold_name)
+        imshow(img_arr)
+    catch e
+        println(e)
+        println("Problem with $i ($fold_name)")
+    end
+    x=readline()
+    if x=="c"
+        break
+    end
+    ImageView.closeall()
+end
+
+#=led_stat=map(x->["OFF","ON"][x],Int.(img_info.Stim).+1)=#
+#=to_img=1=#
+#=diff_arr=compute_diff(img_arr[:,:,1:2:end],fold_name;diff_step=1);=#
+
+
 
 imshow(img_arr)
 
@@ -37,22 +90,19 @@ plt=make_plot(img_arr,diff_arr,img_info.Cam,led_stat,win_width=win_width)
 listen=frameshift(plt[1],frame_num,size(img_arr)[end],p_x)
 show_plot()
 
-print("Enter x: ")
-s_x=parse(Int,readline())
+# print("Enter x: ")
+# s_x=parse(Int,readline())
 
-print("Enter y: ")
-s_y=parse(Int,readline())
+# print("Enter y: ")
+# s_y=parse(Int,readline())
 
-empty!(plt[1])
-win_width=80
-plt=make_plot(img_arr,diff_arr,img_info.Cam, led_stat,win_width=win_width)
-listen=frameshift(plt[1],frame_num,size(diff_arr)[end],p_x)
-
-show_plot()
+# empty!(plt[1])
+# win_width=80
+# plt=make_plot(img_arr,diff_arr,img_info.Cam, led_stat,win_width=win_width)
+# listen=frameshift(plt[1],frame_num,size(diff_arr)[end],p_x)
 
 scattermouse=[]
-
-crop_size=80
+crop_size=160
 mouse_pos=[]
 empty!(events(plt[1]).mousebutton.listeners)
 mouse_click = on(events(plt[1]).mousebutton, priority=0) do event
@@ -98,7 +148,13 @@ cell_crop_pad=rot(cell_crop_pad)
 
 tiled = cat([cell_crop_pad[:,(col_num*(i-1)*crop_size)+1:col_num*i*crop_size,:] for i in 1:row_num]..., dims=1) 
 
+
+
+write2video(tiled[:,:,1:10:end],"/home/para/data/$fold_name/tiled";fps=1)
+
 imshow(tiled)
+
+imshow(img_arr)
 
 GC.gc()
 

@@ -93,7 +93,7 @@ function plot_stats(stats)
     disp(fig,x=1000)
 end
 
-function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/home/para/data/"*Dates.format(now(),folder_format),sleept=0.0001,sep=false,notes="",strobe=false,period=2,p_w=1,stim=nothing,stim_offset=0)
+function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,fold_name="/home/para/data/"*Dates.format(now(),folder_format),sleept=0.0001,sep=false,notes="",strobe=false,period=2,p_w=1,stim=nothing,stim_offset=0,start_toggle=Observable(true))
     cam_fps=Int(floor(framerate(cam)))
     stim_state=false
     if save_frame
@@ -117,20 +117,21 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
     stim_off_arr=[]
     stim_state="OFF"
     if strobe
-        tsk = Threads.@spawn begin
+        tsk = ThreadPools.@tspawnat 3 begin
             init_strobe_t=time()
+            sleep(stim_offset)
             while (time()-init_strobe_t)<t-0.005
                 stim_state="ON"; push!(stim_on_arr, time()- init_strobe_t)
                 stim.high()
                 sleep(p_w); stim.low()
                 stim_state="OFF"
                 push!(stim_off_arr, time()- init_strobe_t)
-                sleep(period - (time()-init_strobe_t)%period)
+                sleep(period - (time()-(init_strobe_t+stim_offset))%period)
             end
         end
     end
     try
-        while (img_ts-ts_init)<(t*1e9)
+        while (img_ts-ts_init)<(t*1e9) && start_toggle[]
             img_id,img_ts,_ = getimage!(cam,img);
             n+=1
             if save_frame
@@ -158,10 +159,18 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
         end
     catch e
         println("\nAborting...")
-        println(e)
-        schedule(tsk, InterruptException();error=true)
+        notes*="\n\nAborted early"
+        #=if typeof(e) == InterruptException=#
+            #=stop!(cam)=#
+            #=println(e)=#
+            #=rethrow(e)=#
+        #=end=#
     end
-
+    if strobe
+        if !istaskdone(tsk)
+            schedule(tsk,InterruptException();error=true)
+        end
+    end
     println("\nDone. Took $(round(fps[end]-fps[1])) s for $n frames. FPS = $(round(n/t,digits=1)).");
     stop!(cam);
     stim.low()
@@ -178,6 +187,11 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
             stim_arr[ts_arr.>stim_on_arr[i] .&& (ts_arr.<stim_off_arr[i] .|| ts_arr.<(stim_on_arr[i]+0.1))].=1
         end
         CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr,fps.-fps[1],stim_arr],["ID","Cam","Grab","Stim"]))
+        println("Enter note:")
+        en_note_tsk=Threads.@sync readline()
+        en_note=fetch(en_note_tsk)
+        notes*="\n\n$en_note"
+        notes*="\n\n$n frames in $(round(ts_arr[end],digits=2)) s"
         open("$fold_name/dat.txt", "w") do file
             write(file, fold_name*"\n\n"*cam_prop(cam)*"\n\nNotes:\n"*notes*"\n\n")
         end
@@ -185,6 +199,187 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
     end
     return fps,id_arr,ts_arr,fold_name
 end
+
+function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,sleept=0.001,sep=false,notes="",strobe=Observable(false),period=2,p_w=1,stim=nothing,stim_offset=0,start_toggle=Observable(false),stim_on=Observable(false),t_start=Observable(0),start_exp=Observable(false),ITI=3600,TRIAL_LENGTH=3600,led=Observable(true))
+    cam_fps=Int(floor(framerate(cam)))
+    stim_state=false
+    beg_ts=0
+    img=zeros(Gray{N0f8},2048,2048)
+    n=1
+    led_arr=[0]
+    start!(cam);
+    img_id,ts_init,_=getimage!(cam,img)
+    start_t=time()
+    fps=[start_t]
+    img_ts=ts_init
+    ts_arr=[ts_init]
+    id_arr=[img_id]
+    img_arr=zeros(UInt8,2048,2048,cam_fps)
+    img_arr[:,:,1].=reinterpret(UInt8,img)
+    stim_on_arr=[]
+    stim_off_arr=[]
+    stim_state="OFF"
+    last_start=false
+    n_start=0
+    ts_start=0
+    exp_ts_start=0
+    tsk=nothing
+    tstim=nothing
+    exp_on=false
+    file=nothing
+    fold_name="/home/para/data/"*Dates.format(now(),folder_format)
+    try
+        while true
+            img_id,img_ts,_ = getimage!(cam,img)
+            #=println("$(start_toggle[]) $last_start")=#
+            #=println(start_exp[])=#
+            if !exp_on && start_exp[]
+                exp_on=true
+                exp_ts_start=time()
+                println("\nStarting experiment\n")
+                tsk=Threads.@async begin
+                    exp_ts_start=time()
+                    start_toggle[] = true
+                    sleep(TRIAL_LENGTH)
+                    start_toggle[]=false
+                    sleep(ITI)
+                    start_toggle[]=true
+                    sleep(TRIAL_LENGTH)
+                    start_exp[]=false
+                    start_toggle[]=false
+                end
+            end
+            if exp_on && !start_exp[] 
+                if !istaskdone(tsk)
+                    schedule(tsk,InterruptException(),error=true)
+                end
+                if strobe[]
+                    if !istaskdone(tstim)
+                        schedule(tstim,InterruptException(),error=true)
+                    end
+                end
+                exp_on=false
+                last_start=false
+                start_toggle[]=false
+                t_start[]=0
+                println("\nExperiment done")
+            end
+            if (start_toggle[] - last_start) == 1 
+                fold_name = "/home/para/data/"*Dates.format(now(),folder_format)
+                last_start=true
+                n_start=1
+                ts_start=time()
+                if save_frame[]
+                    mkpath(fold_name)
+                    file=open("$fold_name/dat.bin","w+")
+                    println("\nWill save to $fold_name")
+                end
+                println("\nStarting trial")
+                led[]=true
+                if strobe[]
+                    println("Starting stimulus")
+                    tstim=Threads.@async begin
+                        sleep(stim_offset)
+                        while (time()-ts_start) < (TRIAL_LENGTH-1)
+                            stim.high()
+                            sleep(p_w)
+                            stim.low()
+                            sleep(period - (time()-(ts_start+stim_offset))%period)
+                        end
+                    end
+                end
+            end
+            n+=1
+            if start_toggle[]
+                n_start+=1
+                if strobe[]
+                    curr = (stim_offset < (time()-ts_start)%period < stim_offset+p_w) 
+                    stim_on[] = curr
+                end
+                if save_frame[] && last_start
+                    img_arr[:,:,((n_start-1)%cam_fps)+1].=reinterpret(UInt8,img)
+                end
+            end
+            if start_exp[]
+                t_start[]=Int(floor(time()-exp_ts_start))
+            end
+            if disp[]
+                dsp= obs_img[]=UInt8.(floor.(img*255))[1:4:end,end:-4:1]
+            else
+                obs_img[]=zeros(Gray{N0f8},2048,2048)
+            end
+
+            push!(ts_arr,img_ts)
+            push!(id_arr,img_id)
+            
+            if save_frame[] && last_start && n_start%(cam_fps)==0
+                wrt = write(file, img_arr)
+                img_arr.=0
+            end
+
+            push!(fps,time())
+            if stat
+                print_fps(n,fps,ts_arr,stop=false,stim=start_toggle[])
+                sleep(sleept)
+            elseif disp[]
+                sleep(max(0.001,sleept))
+            end
+            if (start_toggle[] - last_start) == -1
+                last_start=false
+                if strobe[]
+                    if !istaskdone(tstim)
+                        schedule(tstim,InterruptException();error=true)
+                    end
+                end
+                led[]=false
+                curr_time=time()
+                println("\nDone. Took $(round(curr_time-ts_start,digits=2)) s for $n_start frames. FPS = $(round(n_start/((curr_time-ts_start)),digits=1)).");
+                stim.low()
+                ts_arr.-=ts_init
+                ts_arr*=1e-9
+                id_arr.+=1
+                if save_frame[] 
+                    if sum(img_arr)>0
+                        write(file, img_arr)
+                    end
+                    println("Saved $n_start frames to $fold_name...")
+                    stim_arr=zeros(size(ts_arr))
+                    for (i,o) in enumerate(stim_on_arr)
+                        stim_arr[ts_arr.>stim_on_arr[i] .&& (ts_arr.<stim_off_arr[i] .|| ts_arr.<(stim_on_arr[i]+0.1))].=1
+                    end
+                    CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr,fps.-fps[1],stim_arr],["ID","Cam","Grab","Stim"]))
+                    if !start_exp[]
+                        println("Enter note:")
+                        en_note=readline()
+                    else
+                        en_note=""
+                    end
+                    notes*="\nStimulus: $(strobe[])\nDisplay: $(disp[])"
+                    frame_note="\n\n$n_start frames in $(round(time()-ts_start,digits=2)) s"
+                    open("$fold_name/dat.txt", "w") do file
+                            write(file, "$fold_name\n\n$(cam_prop(cam))\n\nNotes:\n$notes\n\n$frame_note\n\n$en_note")
+                    end
+                    close(file)
+                end
+            end
+        end
+    catch e
+        print("\nAborting...")
+        stop!(cam)
+        start_toggle[]=false
+        if typeof(e) == InterruptException
+            print(" (interrupted)")
+        else
+            println()
+            println(e)
+            rethrow(e)
+        end
+    end
+    #=return fps,id_arr,ts_arr,fold_name=#
+end
+
+
+
 
 function fr(cam,n)
     framerate!(cam,n)
@@ -197,4 +392,48 @@ end
 function disp(fig;x=500,y=500)
     screen=display(fig);
     resize!(screen,x,y);
+end
+
+
+function load_rpi(;flash_led=true,single_stim=false,gpios=14,gpiol=1)
+    rpi_port=readdir("/dev/")[findall(occursin.("ttyACM",readdir("/dev/")))]
+    if isempty(rpi_port)
+        println("No RPi")
+    else
+        println("Pyboard port: $(rpi_port[1])")
+        stim=stim_init(;gpiol=gpiol,gpios=gpios,port=rpi_port[1][end:end])
+        if single_stim
+            #=stim.high()=#
+            #=sleep(0.05)=#
+            #=stim.low()=#
+        end
+        if flash_led
+            stim.set_led(10,10,10)
+            sleep(1)
+            stim.set_led(0,0,0)
+        end
+        return stim
+    end
+end
+
+function flash_led(stim)
+    stim.set_led(10,10,10)
+    sleep(1)
+    stim.set_led(0,0,0)
+end
+
+function stim_one(stim;pulse=0.05,run_cam=false)
+    if run_cam
+        stat=record(cam,5;obs_img=obs_img,save_frame=false,disp=true,stat=true,notes="",strobe=true,p_w=pulse,period=21,stim=stim,stim_offset=2);
+    else
+        stim.high()
+        sleep(pulse)
+        stim.low()
+    end
+end
+
+
+function rpi_disconnect(stim)
+    global stim=nothing
+    GC.gc()
 end

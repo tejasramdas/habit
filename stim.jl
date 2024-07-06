@@ -3,9 +3,11 @@
 using PyCall
 using GLMakie
 
-function stim_init()
+function stim_init(;port=1,gpiol=1,gpios=14)
     pushfirst!(PyVector(pyimport("sys")."path"), ".")
-    return pyimport("stim").Stim()
+    println("LED Pin: $gpiol")
+    println("EM Pin: $gpios")
+    return pyimport("stim").Stim(port=port,gpios=gpios,gpiol=gpiol)
 end
 function flash(stim=Nothing,t=0,p_w=0,period=0,offset=0)
     beg=time()
