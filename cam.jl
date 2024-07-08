@@ -288,6 +288,8 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                         end
                     end
                 end
+                ts_arr=[ts_init]
+                id_arr=[img_id]
             end
             n+=1
             if start_toggle[]
@@ -338,6 +340,7 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                 ts_arr.-=ts_init
                 ts_arr*=1e-9
                 id_arr.+=1
+                id_arr.-=id_arr[1]
                 if save_frame[] 
                     if sum(img_arr)>0
                         write(file, img_arr)
