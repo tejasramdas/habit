@@ -7,7 +7,6 @@ stim=load_rpi()
 #Initialize camera and display
 cam=init_cam(10,10000,"";prop=true);
 obs_img=init_img();
-# fig=init_disp(obs_img);
 time_start=Observable(0)
 stim_on=Observable(false)
 start_toggle=Observable(false)
@@ -41,16 +40,15 @@ img=get_one_frame(cam,obs_img);
 
 
 #ORIGINAL METHOD
-#=try_num=5=#
-#=trial_note="Rehabituation try $try_num with solenoid\n"=#
-#==#
+#=try_num=1=#
+#=trial_note="Testing with solenoids"=#
 #=println("Starting $trial_note")=#
 #=notes*=trial_note=#
 #=stat=record(cam,TRIAL_LENGTH;obs_img=obs_img,save_frame=SAVE_FRAME,disp=DISPLAY,stat=PRINT_STAT,notes=notes,strobe=STROBE,p_w=PULSE,period=PERIOD,stim=stim,stim_offset=STIM_OFFSET);=#
 #=GC.gc()=#
 #=sleep(3600);=#
 #=stat=record(cam,TRIAL_LENGTH;obs_img=obs_img,save_frame=SAVE_FRAME,disp=DISPLAY,stat=PRINT_STAT,notes=notes,strobe=STROBE,p_w=PULSE,period=PERIOD,stim=stim,stim_offset=STIM_OFFSET);=#
-
+#==#
 
 
 
@@ -91,7 +89,17 @@ STIM_VOLTAGE=parse(Int,readline())
 println()
 println("Enter light level from 0 to 255 (usually 10):")
 LIGHT_LEVEL[]=parse(Int,readline())
+
+#=TRIAL_LENGTH = 3600 =#
+#=ITI = 3600=#
+#=PULSE = 0.05=#
+#=PERIOD = 60=#
+#=STIM_OFFSET = 2=#
+#=STIM_VOLTAGE = 7.0=#
+#=LIGHT_LEVEL[] = 10=#
+
 notes="Trial duration: $TRIAL_LENGTH s\nITI: $ITI s\nPulse: $PULSE s \nPeriod: $PERIOD s \nStim voltage: $STIM_VOLTAGE\nOffset: $STIM_OFFSET s\nLight level: $(LIGHT_LEVEL[])"
+println()
 println(notes)
 
 #==#

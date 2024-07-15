@@ -25,14 +25,23 @@ function convert_h5(fold_name)
     println("Converted $file_loc...")
 end
 
-function load_stack(master_folder="/home/para/data/",fold_name=readdir(master_folder)[end])
-    file_loc="$master_folder$fold_name/dat."
-    frame_info=CSV.read(file_loc*"csv",DataFrame)
-    notes=read(open(file_loc*"txt","r"),String)
-    binarr=open(file_loc*"bin")
+function load_stack(master_folder="/home/para/data/",fold_name=readdir(master_folder)[end];num_frames=0,sz=2048,down=false)
+    file_loc="$master_folder$fold_name/dat"
+    frame_info=CSV.read(file_loc*".csv",DataFrame)
+    notes=read(open(file_loc*".txt","r"),String)
     println("Loading file...")
-    arr = mmap(binarr, Array{UInt8,3}, (2048,2048,Int(frame_info.ID[end]-1)))
-    println("Loaded $file_loc... $(Int(frame_info.ID[end]-1)) frames")
+    if num_frames==0
+        frame_num = Int(frame_info.ID[end]-1)
+    else
+        frame_num=num_frames
+    end
+    if down
+        binarr=open(file_loc*"2.bin")
+    else
+        binarr=open(file_loc*".bin")
+    end
+    arr = mmap(binarr, Array{UInt8,3}, (sz,sz,frame_num))
+    println("Loaded $file_loc... $(frame_num) frames")
     return arr,frame_info,notes
 end
 
@@ -124,7 +133,7 @@ function make_plot(img_arr,diff_arr,ts,stim;win_width=100)
     # ax3=GLMakie.Axis(f[2,:]);
     padded_img=PaddedView(0,img_arr,(-win_width:size(img_arr)[1]+win_width,-win_width:size(img_arr)[2]+win_width,1:size(img_arr)[3]))
     # padded_diff=PaddedView(0,diff_arr,(-win_width:size(diff_arr)[1]+win_width,-win_width:size(diff_arr)[2]+win_width,1:size(diff_arr)[3]))
-    title = Label(f[1,1:9], @lift("Time: $(round(ts[$to_img*$frame_num],digits=1)) | Offset: $($p_x), $($p_y) | Stim: $(stim[$to_img*$frame_num])"), fontsize = 18)
+    #=title = Label(f[1,1:9], @lift("Time: $(round(ts[$to_img*$frame_num],digits=1)) | Offset: $($p_x), $($p_y) | Stim: $(stim[$to_img*$frame_num])"), fontsize = 18)=#
     # img_plot=image!(ax1,@lift(reinterpret(N0f8,padded_img[$p_x:p_x[]+win_width,$p_y:p_y[]+win_width,to_img*frame_num[]])),interpolate=false)
     img_plot=image!(ax1,@lift(reinterpret(N0f8,img_arr[:,:,to_img*$frame_num])),interpolate=false)
     # diff_plot=image!(ax2,@lift(max.($threshold,padded_diff[$p_x:p_x[]+win_width,$p_y:p_y[]+win_width,frame_num[]]).-threshold[]),interpolate=false)

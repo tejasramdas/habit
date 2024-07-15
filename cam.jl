@@ -282,14 +282,17 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                         sleep(stim_offset)
                         while (time()-ts_start) < (TRIAL_LENGTH-1)
                             stim.high()
+                            push!(stim_on_arr,time()-ts_start)
                             sleep(p_w)
                             stim.low()
+                            push!(stim_off_arr,time()-ts_start)
                             sleep(period - (time()-(ts_start+stim_offset))%period)
                         end
                     end
                 end
                 ts_arr=[ts_init]
                 id_arr=[img_id]
+                fps=[ts_start]
             end
             n+=1
             if start_toggle[]
@@ -351,6 +354,7 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                         stim_arr[ts_arr.>stim_on_arr[i] .&& (ts_arr.<stim_off_arr[i] .|| ts_arr.<(stim_on_arr[i]+0.1))].=1
                     end
                     CSV.write("$fold_name/dat.csv", DataFrame([id_arr,ts_arr,fps.-fps[1],stim_arr],["ID","Cam","Grab","Stim"]))
+                    CSV.write("$fold_name/stim.csv", DataFrame([stim_on_arr,stim_off_arr],["Stimulus on","Stimulus off"]))
                     if !start_exp[]
                         println("Enter note:")
                         en_note=readline()
