@@ -200,7 +200,7 @@ function record(cam,t=0;stat=false,obs_img=Nothing,disp=false,save_frame=false,f
     return fps,id_arr,ts_arr,fold_name
 end
 
-function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,sleept=0.001,sep=false,notes="",strobe=Observable(false),period=2,p_w=1,stim=nothing,stim_offset=0,start_toggle=Observable(false),stim_on=Observable(false),t_start=Observable(0),start_exp=Observable(false),ITI=3600,TRIAL_LENGTH=3600,led=Observable(true))
+function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,sleept=0.001,sep=false,NOTES="",strobe=Observable(false),period=2,p_w=1,stim=nothing,stim_offset=0,start_toggle=Observable(false),stim_on=Observable(false),t_start=Observable(0),start_exp=Observable(false),ITI=3600,TRIAL_LENGTH=3600,led=Observable(true),abort=ABORT)
     cam_fps=Int(floor(framerate(cam)))
     stim_state=false
     beg_ts=0
@@ -368,6 +368,10 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                     end
                     close(file)
                 end
+            end
+            if ABORT[]
+                stop!(cam)
+                return "Aborted"
             end
         end
     catch e

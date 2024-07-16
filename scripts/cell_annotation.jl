@@ -1,5 +1,7 @@
 using GLMakie, VideoIO, Colors, ImageFiltering, Statistics
 
+#Change filename to path
+filename="na"
 
 vid=VideoIO.load(file_name,target_format=VideoIO.AV_PIX_FMT_GRAY8)
 size(vid)
@@ -21,6 +23,7 @@ tot_J=Int(floor(size(vid_arr[1])[1]/160))
 
 i=image!(ax,@lift($threshold_low.<vid_arr[$frame_num].<$threshold_high),colorrange=[0,1])
 
+i=image!(ax,@lift(vid_arr[$frame_num]),colorrange=[0,1])
 
 contract=zeros(60,tot_I,tot_J)
 
@@ -77,3 +80,22 @@ on(events(f).keyboardbutton) do event
         println(frame_num[])
     end
 end
+
+t=Threads.@async begin
+    for i in 1:2000
+        frame_num[]+=(2*(frame_num[]%2)-1)
+        sleep(0.5)
+    end
+end
+
+f=Figure()
+ax=Axis(f[1:3,1:3],xlabel="Stimulus number",ylabel="Contraction probability")
+
+sing=rolling.(mean,[reshape(manual_contract,(60,:))[i,:] for i in 1:16],5)
+
+for i in 1:5
+    lines!(ax,sing[i][1:end],label="Cell $i")
+end
+lines!(ax,mean(hcat(sing...),dims=2)[1:end,1],linewidth=3,color=:black,label="Mean (16 cells)")
+
+l=Legend(f[2,4],ax)
