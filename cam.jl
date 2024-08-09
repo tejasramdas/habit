@@ -1,4 +1,4 @@
-using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, HDF5, Mmap, VideoIO, ProgressMeter, Spinnaker #load Spinnaker last
+using GLMakie, Images, ThreadPools, ProgressBars, Dates, CSV, DataFrames, JLD, PyCall, HDF5, JSON, Mmap, VideoIO, ProgressMeter, Spinnaker #load Spinnaker last
 # NOTES
 # image timestamp units: 1 ns = 10e-6 ms
 
@@ -20,20 +20,20 @@ function init_cam(framerate=40,exposure=10000,mode="old";prop=false)
         buffercount!(cam, 45) # max=45
     end
     if prop
-        print(cam_prop(cam))
+        println(JSON.json(cam_prop(cam),4))
     end
     return cam
 end
 
 function cam_prop(cam)
-    prop_str="-"^70*"\n\n Model: $cam \n\n"*"-"^70*" \n\n"
-    prop_str*= " Exposure: $(round(exposure(cam)[1]/1000,digits=2)) ms \n"
-    prop_str*= " Framerate: $(framerate(cam)) fps \n"
-    prop_str*= " Trigger: $(triggermode(cam)) \n"
-    prop_str*= " Buffer Mode: $(buffermode(cam)) \n"
-    prop_str*= " Buffer Count: $(buffercount(cam)[1]) \n\n"
-    prop_str*= "-"^70*"\n"
-    return prop_str
+    cam_props=Dict{String,Any}("model"=> "$cam", 
+    "exposure"=> round(exposure(cam)[1]/1000,digits=2),
+    "framerate"=> framerate(cam),
+    "trigger"=> triggermode(cam),
+    "buffer_mode"=> buffermode(cam),
+    "buffer_count"=> buffercount(cam)[1] 
+    )
+    return cam_props
 end
 
 function init_disp(obs_img)
@@ -200,7 +200,7 @@ end
 #=    return fps,id_arr,ts_arr,fold_name=#
 #=end=#
 
-function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,sleept=0.001,sep=false,NOTES="",strobe=Observable(false),period=Observable(60),p_w=Observable(0.05),stim=nothing,stim_offset=0,start_toggle=Observable(false),stim_on=Observable(false),t_start=Observable(0),start_exp=Observable(false),ITI=3600,TRIAL_LENGTH=3600,led=Observable(true),abort=ABORT,DELAY=Observable(0))
+function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,sleept=0.001,sep=false,NOTES=Observable(Dict{String,Any}("stentor"=>"cool")),strobe=Observable(false),period=Observable(60),p_w=Observable(0.05),stim=nothing,stim_offset=0,start_toggle=Observable(false),stim_on=Observable(false),t_start=Observable(0),start_exp=Observable(false),ITI=3600,TRIAL_LENGTH=3600,led=Observable(true),abort=ABORT,DELAY=Observable(0),STAGE_NUM=Observable(1))
     cam_fps=Int(floor(framerate(cam)))
     stim_state=false
     beg_ts=0
@@ -227,6 +227,8 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
     tstim=nothing
     exp_on=false
     file=nothing
+    curr_trial=0
+    exp_fold_name=""
     fold_name="/home/para/data/"*Dates.format(now(),folder_format)
     try
         while true
@@ -234,6 +236,8 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
             #=println("$(start_toggle[]) $last_start")=#
             #=println(start_exp[])=#
             if !exp_on && start_exp[]
+                exp_fold_name="/home/para/data/"*Dates.format(now(),folder_format)
+                curr_trial=0
                 exp_on=true
                 exp_ts_start=time()
                 println("\nStarting experiment\n")
@@ -266,7 +270,8 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                 println("\n Experiment done")
             end
             if (start_toggle[] - last_start) == 1 
-                fold_name = "/home/para/data/"*Dates.format(now(),folder_format)
+                curr_trial+=1
+                fold_name = "$(exp_fold_name)/trial_$(curr_trial)"
                 last_start=true
                 n_start=1
                 ts_start=time()
@@ -283,10 +288,10 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                         try
                             sleep(stim_offset[])
                             while (time()-ts_start) < (TRIAL_LENGTH[]-1)
-                                stim.high()
+                                stim.high(STAGE_NUM[])
                                 push!(stim_on_arr,time()-ts_start)
                                 sleep(p_w[])
-                                stim.low()
+                                stim.low(STAGE_NUM[])
                                 push!(stim_off_arr,time()-ts_start)
                                 sleep(period[] - (time()-(ts_start+stim_offset[]))%period[])
                             end
@@ -346,7 +351,7 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                 #=led[]=false=#
                 curr_time=time()
                 #=println("\nDone. Took $(round(curr_time-ts_start,digits=2)) s for $n_start frames. FPS = $(round(n_start/((curr_time-ts_start)),digits=1)).");=#
-                stim.low()
+                stim.low(STAGE_NUM[])
                 ts_arr.-=ts_init
                 ts_arr*=1e-9
                 id_arr.+=1
@@ -368,10 +373,9 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
                     #=else=#
                     #=    en_note=""=#
                     #=end=#
-                    NOTES[]*="\nStimulus: $(strobe[])\nDisplay: $(disp[])"
-                    frame_note="\n\n$n_start frames in $(round(time()-ts_start,digits=2)) s"
-                    open("$fold_name/dat.txt", "w") do file
-                            write(file, "$fold_name\n\n$(cam_prop(cam))\n\nNotes:\n$(NOTES[])\n\n$frame_note")
+                    merge!(NOTES[],Dict{String,Any}("stimulus"=>strobe[], "display"=>disp[], "frames"=> n_start, "runtime" => round(time()-ts_start,digits=2),"camera"=>cam_prop(cam),"folder"=>fold_name))
+                    open("$fold_name/dat.json", "w") do file
+                            write(file, JSON.json(NOTES[]))
                     end
                     close(file)
                 end
@@ -386,7 +390,6 @@ function record_inf(cam;stat=false,obs_img=Nothing,disp=false,save_frame=false,s
         stop!(cam)
         start_toggle[]=false
         if typeof(e) == InterruptException
-            rethrow(e)
             print(" (interrupted)")
         else
             println()
@@ -414,13 +417,13 @@ function disp(fig;x=500,y=500)
 end
 
 
-function load_rpi(;flash_led=true,single_stim=false,gpios=14,gpiol=1)
+function load_rpi(;flash_led=true,single_stim=false,gpio1=1,gpio2=3,gpio3=4,gpiol=14)
     rpi_port=readdir("/dev/")[findall(occursin.("ttyACM",readdir("/dev/")))]
     if isempty(rpi_port)
         println("No RPi")
     else
         println("Pyboard port: $(rpi_port[1])")
-        stim=stim_init(;gpiol=gpiol,gpios=gpios,port=rpi_port[1][end:end])
+        stim=stim_init(;gpio1=gpio1,gpio2=gpio2,gpio3=gpio3,gpiol=gpiol,port=rpi_port[1][end:end])
         if single_stim
             #=stim.high()=#
             #=sleep(0.05)=#
@@ -441,13 +444,13 @@ function flash_led(stim)
     stim.set_led(0,0,0)
 end
 
-function stim_one(stim;pulse=0.05,run_cam=false)
+function stim_one(stim,n;pulse=0.05,run_cam=false)
     if run_cam
         stat=record(cam,5;obs_img=obs_img,save_frame=false,disp=true,stat=true,notes="",strobe=true,p_w=pulse,period=21,stim=stim,stim_offset=2);
     else
-        stim.high()
+        stim.high(n)
         sleep(pulse)
-        stim.low()
+        stim.low(n)
     end
 end
 

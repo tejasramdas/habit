@@ -126,20 +126,13 @@ function save_video(img_arr, stim)
 end
 
 
-function make_plot(img_arr,diff_arr,ts,stim;win_width=100)
+function make_plot(img_arr;win_width=100)
     f=Figure(res=(500,500)); 
     ax1=GLMakie.Axis(f[2:10,1:9]); 
-    # ax2=GLMakie.Axis(f[1,2]); 
-    # ax3=GLMakie.Axis(f[2,:]);
     padded_img=PaddedView(0,img_arr,(-win_width:size(img_arr)[1]+win_width,-win_width:size(img_arr)[2]+win_width,1:size(img_arr)[3]))
-    # padded_diff=PaddedView(0,diff_arr,(-win_width:size(diff_arr)[1]+win_width,-win_width:size(diff_arr)[2]+win_width,1:size(diff_arr)[3]))
     #=title = Label(f[1,1:9], @lift("Time: $(round(ts[$to_img*$frame_num],digits=1)) | Offset: $($p_x), $($p_y) | Stim: $(stim[$to_img*$frame_num])"), fontsize = 18)=#
-    # img_plot=image!(ax1,@lift(reinterpret(N0f8,padded_img[$p_x:p_x[]+win_width,$p_y:p_y[]+win_width,to_img*frame_num[]])),interpolate=false)
     img_plot=image!(ax1,@lift(reinterpret(N0f8,img_arr[:,:,to_img*$frame_num])),interpolate=false)
-    # diff_plot=image!(ax2,@lift(max.($threshold,padded_diff[$p_x:p_x[]+win_width,$p_y:p_y[]+win_width,frame_num[]]).-threshold[]),interpolate=false)
-    # diff_histo=hist!(ax3,@lift(diff_arr[1:4:end,1:4:end,$frame_num][:]),bins=collect(-1.0:0.1:1.0))
-    # hidedecorations!(ax1)
-    return f,ax1#ax2,diff_plot
+    return f,ax1
 end
 
 function show_plot(f=plt[1])

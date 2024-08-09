@@ -3,11 +3,11 @@
 using PyCall
 using GLMakie
 
-function stim_init(;port=1,gpiol=1,gpios=14)
+function stim_init(;gpio1=1,gpio2=2,gpio3=3,port=1,gpiol=14)
     pushfirst!(PyVector(pyimport("sys")."path"), ".")
-    println("LED Pin: $gpiol")
-    println("EM Pin: $gpios")
-    return pyimport("stim").Stim(port=port,gpios=gpios,gpiol=gpiol)
+    println("LED pin: $gpiol")
+    println("Solenoid pins: $gpio1, $gpio2, $gpio3")
+    return pyimport("stim").Stim(port=port,gpio1=gpio1,gpio2=gpio2,gpio3=gpio3,gpiol=gpiol)
 end
 function flash(stim=Nothing,t=0,p_w=0,period=0,offset=0)
     beg=time()
